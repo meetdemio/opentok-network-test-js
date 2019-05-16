@@ -31,6 +31,8 @@ import OTKAnalytics = require('opentok-solutions-logging');
 export interface NetworkTestOptions {
   audioOnly?: boolean;
   timeout?: number;
+  audioSource?: string;
+  videoSource?: string;
 }
 
 export default class NetworkTest {
@@ -106,7 +108,7 @@ export default class NetworkTest {
         throw new InvalidOnUpdateCallback();
       }
     }
-
+    console.log('AQUI options', this.options)
     return testQuality(
       this.OT, this.credentials, this.otLogging, this.options, updateCallback);
   }
