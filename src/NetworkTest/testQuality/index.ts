@@ -47,7 +47,7 @@ let stopTest: Function | undefined;
 let stopTestTimeoutId: number;
 let stopTestTimeoutCompleted = false;
 let stopTestCalled = false;
-
+let globalSession: OT.Session
 /**
  * If not already connected, connect to the OpenTok Session
  */
@@ -118,6 +118,7 @@ function publishAndSubscribe(OT: OT.Client, options?: NetworkTestOptions) {
       containerDiv.style.height = '1px';
       containerDiv.style.opacity = '0';
       document.body.appendChild(containerDiv);
+      if (stopTestCalled) return reject(undefined)
       validateDevices(OT)
         .then((availableDevices: AvailableDevices) => {
           if (!Object.keys(availableDevices.video).length) {
@@ -140,10 +141,12 @@ function publishAndSubscribe(OT: OT.Client, options?: NetworkTestOptions) {
           if (audioOnly) {
             publisherOptions.videoSource = null;
           }
+          if (stopTestCalled) return reject(undefined)
           const publisher = OT.initPublisher(containerDiv, publisherOptions, (error?: OT.OTError) => {
             if (error) {
               reject(new e.InitPublisherError(error.message));
             } else {
+              if (stopTestCalled) return reject(undefined)
               session.publish(publisher, (publishError?: OT.OTError) => {
                 if (publishError) {
                   if (errorHasName(publishError, OTErrorType.NOT_CONNECTED)) {
@@ -159,6 +162,7 @@ function publishAndSubscribe(OT: OT.Client, options?: NetworkTestOptions) {
             }
           });
           publisher.on('streamCreated', (event: StreamCreatedEvent) => {
+            if (stopTestCalled) return reject(undefined)
             const subscriber =
               session.subscribe(event.stream,
                 containerDiv,
@@ -182,6 +186,7 @@ function subscribeToTestStream(
   credentials: OT.SessionCredentials,
   options?: NetworkTestOptions): Promise<OT.Subscriber> {
   return new Promise((resolve, reject) => {
+    if (stopTestCalled) return reject(undefined)
     connectToSession(session, credentials.token)
       .then(publishAndSubscribe(OT, options))
       .then(resolve)
@@ -240,24 +245,34 @@ function checkSubscriberQuality(
             };
 
             const processResults = () => {
+              if (stopTestCalled) return console.log('TEST - processResults stop')
               const audioVideoResults: QualityTestResults = buildResults(builder);
-              if (!audioOnly && !isAudioQualityAcceptable(audioVideoResults)) {
+              /*if (!audioOnly && !isAudioQualityAcceptable(audioVideoResults)) {
                 audioOnly = true;
                 checkSubscriberQuality(OT, session, credentials, options, onUpdate, true)
                   .then((results: QualityTestResults) => {
                     resolve(results);
                   });
-              } else {
+              } else {*/
+                console.log('TEST - process sessionDisconnected, audio quality', isAudioQualityAcceptable(audioVideoResults))
+                console.log('TEST disconnect session', session)
+                resolve(audioVideoResults);
+                return
                 session.on('sessionDisconnected', () => {
-                  resolve(audioVideoResults);
+                  console.log('TEST - now sessionDisconnected')
                   session.off();
                 });
                 session.disconnect();
-              }
+              //}
             };
 
             stopTest = () => {
-              processResults();
+              // processResults();
+              console.log('TEST - stop test', session.sessionId)
+              session.on('sessionDisconnected', () => {
+                session.off();
+              });
+              session.disconnect();
             };
 
             const resultsCallback: MOSResultsCallback = (state: MOSState) => {
@@ -269,13 +284,13 @@ function checkSubscriberQuality(
 
             mosEstimatorTimeoutId = window.setTimeout(processResults, testTimeout);
 
-            window.clearTimeout(stopTestTimeoutId);
+            /*window.clearTimeout(stopTestTimeoutId);
             stopTestTimeoutId = window.setTimeout(() => {
               stopTestTimeoutCompleted = true;
               if (stopTestCalled && stopTest) {
                 stopTest();
               }
-            }, 5000);
+            }, 5000);*/
 
           } catch (exception) {
             reject(new e.SubscriberGetStatsError());
@@ -330,8 +345,8 @@ export function testQuality(
 
     validateBrowser()
       .then(() => {
-        const session = OT.initSession(credentials.apiKey, credentials.sessionId);
-        checkSubscriberQuality(OT, session, credentials, options, onUpdate)
+        globalSession = OT.initSession(credentials.apiKey, credentials.sessionId);
+        checkSubscriberQuality(OT, globalSession, credentials, options, onUpdate)
           .then(onSuccess)
           .catch(onError);
       })
@@ -339,9 +354,19 @@ export function testQuality(
   });
 }
 
-export function stopQualityTest() {
+/* export function stopQualityTest() {
   stopTestCalled = true;
   if (stopTestTimeoutCompleted && stopTest) {
     stopTest();
+  }
+}*/
+export function stopQualityTest() {
+  stopTestCalled = true
+
+  if (globalSession) {
+    globalSession.on('sessionDisconnected', () => {
+      globalSession.off();
+    });
+    globalSession.disconnect();
   }
 }

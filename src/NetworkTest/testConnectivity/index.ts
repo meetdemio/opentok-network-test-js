@@ -244,7 +244,6 @@ export function testConnectivity(
   options?: NetworkTestOptions,
 ): Promise<ConnectivityTestResults> {
   return new Promise((resolve, reject) => {
-
     const onSuccess = (flowResults: SubscribeToSessionResults) => {
       const results: ConnectivityTestResults = {
         success: true,
@@ -257,7 +256,6 @@ export function testConnectivity(
     };
 
     const onFailure = (error: Error) => {
-
       const handleResults = (...errors: e.ConnectivityError[]) => {
         /**
          * If we have a messaging server failure, we will also fail the media

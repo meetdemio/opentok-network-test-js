@@ -108,7 +108,6 @@ export default class NetworkTest {
         throw new InvalidOnUpdateCallback();
       }
     }
-    console.log('AQUI options', this.options)
     return testQuality(
       this.OT, this.credentials, this.otLogging, this.options, updateCallback);
   }
